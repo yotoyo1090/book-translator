@@ -1,96 +1,54 @@
-# Traducteur de livres
+<p align="center"><img src="docs/icon.png" width="96" alt=""></p>
+<h1 align="center">Book Translator · 도서 번역기</h1>
 
-Traduit en local, avec Ollama, tous les livres et images d'un dossier
-(PDF, EPUB, DOCX, TXT, MD, JPG, PNG, WEBP, BMP, TIFF, GIF), en gardant
-les images et la mise en page.
+<p align="center">
+  내 PC에서, 인터넷 없이, 폴더 안의 책을 통째로 번역합니다.<br>
+  PDF · EPUB · Word · TXT · 이미지 — 그림과 레이아웃은 그대로.
+</p>
 
-## Installation en un clic (Windows)
+<p align="center">
+  <a href="https://github.com/yotoyo1090/book-translator/releases/latest/download/BookTranslator_Setup.exe">
+    <img src="https://img.shields.io/badge/%EB%AC%B4%EB%A3%8C%20%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C-Windows%20%EC%84%A4%EC%B9%98%20%ED%8C%8C%EC%9D%BC-f06a3a?style=for-the-badge&logo=windows" alt="무료 다운로드 — Windows 설치 파일">
+  </a>
+</p>
 
-Double-clic sur `BookTranslator_Setup.exe` : choisir la langue, puis le
-modèle IA (léger 4b ou haute qualité 12b, présélectionné selon la carte
-graphique). L'installateur télécharge et installe tout seul Python
-(portable, dans le dossier du programme), les bibliothèques, Tesseract OCR
-avec 12 langues, Ollama et le modèle. Une icône « Book Translator » est
-créée sur le bureau et dans le menu Démarrer. Relancer l'installateur
-répare ou met à jour sans tout retélécharger.
+![도서 번역기 화면](docs/screenshot.png)
 
-Reconstruire l'installateur : `installer/build.sh` (il faut `makensis`).
+## 무엇을 하나요
 
-## Installation manuelle
+- **폴더 하나만 고르면 끝** — 하위 폴더까지 책을 모두 찾아서 차례로 번역합니다.
+- **레이아웃 보존** — PDF는 같은 자리에 번역문을 다시 쓰고, 그림·표지·도표는 그대로 둡니다.
+- **스캔본도 OK** — OCR(Tesseract)로 읽어서 번역합니다. 이미지 속 글자도 번역할 수 있습니다.
+- **언어 자동 감지** — 책마다 언어를 알아서 찾고, 이미 번역된 책은 다시 하지 않습니다.
+- **100% 로컬** — Ollama의 TranslateGemma 모델이 내 컴퓨터에서 돌아갑니다. 책이 밖으로 나가지 않습니다.
+- **원본은 그대로** — 번역본은 원본 옆에 `책_fr.pdf`처럼 만들어집니다.
+- **12개 언어 화면** — 한국어, English, 中文, Español, Français, العربية, Português, Русский, 日本語, Deutsch, Italiano, Nederlands.
 
-1. Python 3.10 ou plus récent.
-2. Ollama avec le modèle : `ollama pull translategemma:12b`
-3. Tesseract OCR (pour les PDF scannés) :
-   https://github.com/UB-Mannheim/tesseract/wiki — cocher les langues de
-   tes livres dans « Additional language data ».
-4. Dans ce dossier : `pip install -r requirements.txt`
+## 설치 (원클릭)
 
-## Utilisation
+1. 위의 **무료 다운로드** 버튼으로 `BookTranslator_Setup.exe`를 받아 실행합니다.
+   (서명되지 않은 파일이라 Windows가 경고하면 「추가 정보」 → 「실행」)
+2. 언어와 AI 모델을 고릅니다 — **4b**(3.3 GB, 대부분의 PC) 또는 **12b**(8.1 GB, 그래픽 메모리 8 GB 이상).
+3. Python, Tesseract OCR, Ollama, 모델까지 자동으로 설치됩니다.
+4. 바탕화면의 **Book Translator** 아이콘을 누르면 끝.
 
-Double-clic sur `lancer_dashboard.bat` (ou `python server.py`) : le
-dashboard s'ouvre sur http://127.0.0.1:8765.
+처음 실행하면 「사용 방법」 창이 열립니다.
 
-Chaque traduction est créée à côté de son original, avec le code de la
-langue à la fin : `livre.pdf` → `livre_fr.pdf`, `images/schema.png` →
-`images/schema_fr.png`. Les originaux ne sont jamais modifiés.
+![사용 방법](docs/aide.png)
 
-Ligne de commande : `python cli.py livre.pdf --cible French` (langue détectée
-automatiquement ; `--source German` pour la forcer)
-(`--images` : traduire aussi le texte dans les images ; `--test` : sans
-Ollama, pour vérifier la mise en page).
+## Formats
 
-## Mode d'emploi
-
-Le bouton « ? » en haut de la page ouvre le mode d'emploi (5 étapes et
-conseils, dans la langue de l'interface). Il s'ouvre tout seul au premier
-lancement, jusqu'à ce qu'on coche « Ne plus afficher au démarrage ».
-
-## Langue de l'interface
-
-Menu 🌐 en haut à droite : 12 langues (한국어 par défaut, English, 中文,
-Español, Français, العربية, Português, Русский, 日本語, Deutsch, Italiano,
-Nederlands). Le choix est mémorisé. Les textes sont dans `static/i18n.js` :
-pour ajouter une langue, copier le bloc `en`, le traduire et l'ajouter à
-`LANGUES_UI`.
-
-## Traduire pendant le scan
-
-Avec la case « Traduire au fur et à mesure du scan », chaque livre part
-dans la file dès qu'il est analysé (réglages de l'étape 2) : la traduction
-commence sans attendre la fin du scan et continue jusqu'au dernier livre.
-Les livres déjà traduits, déjà dans la langue de sortie ou déjà dans la
-file ne sont pas envoyés une deuxième fois.
-
-## Langue des livres
-
-Par défaut, « Langue du livre » est sur **Détection automatique** : chaque
-livre est traduit depuis sa propre langue, détectée au scan (extrait de
-texte, ou OCR d'une page pour les scans et les images). La langue détectée
-s'affiche dans la liste et peut être corrigée livre par livre. Choisir une
-langue dans le menu (mode manuel) l'applique à tous les livres.
-
-## Comment chaque format est traité
-
-| Format | Méthode |
+| 형식 | 방법 |
 |---|---|
-| PDF avec texte | le texte est effacé bloc par bloc et réécrit au même endroit |
-| PDF scanné / illisible | OCR Tesseract, paragraphe recouvert de la couleur du papier |
-| EPUB | seul le texte du XHTML change ; images, CSS, table des matières intacts |
-| DOCX | paragraphe recomposé avec sa mise en forme (gras, italique, liens, notes) |
-| TXT / MD | paragraphe par paragraphe ; code, tableaux et en-tête Markdown protégés |
-| Fichiers image | OCR, texte effacé (inpainting OpenCV) et réécrit traduit, même couleur |
-| Images DANS les livres | idem, si la case « Traduire aussi le texte dans les images » est cochée |
+| PDF (텍스트) | 블록마다 지우고 같은 자리에 번역문을 다시 씀 |
+| PDF (스캔본) | OCR, 종이 색으로 덮고 번역문을 씀 |
+| EPUB | XHTML의 글자만 바꿈 — 이미지·CSS·목차 그대로 |
+| DOCX | 굵게·기울임·링크 등 서식을 유지 |
+| TXT / MD | 코드·표·머리말은 보호 |
+| 이미지 | OCR → 글자 지우기(인페인팅) → 같은 색으로 번역문 |
 
-`cache_traductions.sqlite` garde chaque traduction : après une coupure,
-relancer reprend sans retraduire. `cache_scan.sqlite` garde l'analyse de
-chaque fichier (type, langue) : un fichier inchangé n'est pas réanalysé au
-scan suivant. Les supprimer efface ces mémoires (sans risque).
+---
 
-## Fichiers
+**English** — Translate whole folders of books (PDF, EPUB, DOCX, TXT, images) locally with Ollama, keeping images and layout. Download the one-click Windows installer above.
 
-- `server.py` : dashboard (FastAPI) · `static/` : page web
-- `jobs.py` : file d'attente · `scanner.py` : scan du dossier
-- `engines.py` : choix du moteur selon le format
-- `pdf_engine.py`, `ocr_engine.py`, `doc_engines.py` : les moteurs
-- `image_text.py` : texte dans les images
-- `translator.py` : client Ollama · `cache.py` : cache SQLite
+**Français** — documentation complète : [LISEZMOI.md](LISEZMOI.md).
