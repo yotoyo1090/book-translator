@@ -1,0 +1,10 @@
+pymupdf>=1.24.10
+requests
+fastapi
+uvicorn
+pytesseract
+pillow
+numpy
+lxml
+opencv-python-headless
+lingua-language-detector

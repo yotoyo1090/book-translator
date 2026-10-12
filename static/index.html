@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book Translator</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1 data-i18n="app_title"></h1>
+  <span class="row">
+    <button id="btn-aide" class="secondary small" data-i18n="aide_btn"></button>
+    <label class="langue-ui" data-i18n-title="ui_langue">🌐 <select id="langue-ui"></select></label>
+    <span id="ocr" class="pill">OCR…</span><span id="ollama" class="pill">Ollama…</span>
+  </span>
+</header>
+
+<main>
+  <section class="card">
+    <h2 data-i18n="h_dossier"></h2>
+    <div class="row">
+      <input id="dossier" type="text" placeholder="C:\Users\...\Livres" spellcheck="false" dir="ltr">
+      <button id="btn-parcourir" class="secondary" data-i18n="btn_parcourir"></button>
+      <button id="btn-scanner" data-i18n="btn_scanner"></button>
+    </div>
+    <label class="check"><input id="recursif" type="checkbox" checked> <span data-i18n="recursif"></span></label>
+    <label class="check"><input id="auto-traduire" type="checkbox"> <span data-i18n="auto_traduire"></span></label>
+    <p id="scan-msg" class="muted"></p>
+  </section>
+
+  <section class="card">
+    <h2 data-i18n="h_traduction"></h2>
+    <div class="grid3">
+      <label><span data-i18n="langue_livre"></span><select id="source"></select></label>
+      <label><span data-i18n="traduire_vers"></span><select id="cible"></select></label>
+      <label><span data-i18n="modele"></span><select id="modele"></select></label>
+    </div>
+    <label class="check"><input id="images" type="checkbox"> <span data-i18n-html="images_livres"></span></label>
+    <p class="muted" data-i18n="images_dossier"></p>
+    <p id="ocr-msg" class="muted"></p>
+    <p class="muted" data-i18n-html="note_sortie"></p>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 data-i18n="h_livres"></h2>
+      <div id="resume" class="chips"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="livres">
+        <colgroup>
+          <col class="c-chk"><col><col class="c-fmt"><col class="c-lang"><col class="c-pg"><col class="c-type"><col class="c-st">
+        </colgroup>
+        <thead><tr>
+          <th><input id="tout" type="checkbox" data-i18n-title="tout_selectionner"></th>
+          <th data-i18n="col_livre"></th>
+          <th class="c" data-i18n="col_format"></th>
+          <th data-i18n="col_langue"></th>
+          <th class="num" data-i18n="col_pages" data-i18n-title="col_pages_titre"></th>
+          <th data-i18n="col_type"></th>
+          <th data-i18n="col_statut"></th>
+        </tr></thead>
+        <tbody id="livres"><tr><td colspan="7" class="muted" data-i18n="vide_initial"></td></tr></tbody>
+      </table>
+    </div>
+    <div class="row end">
+      <button id="btn-traduire" disabled data-i18n="btn_traduire"></button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 data-i18n="h_file"></h2>
+      <div class="row">
+        <button id="btn-pause" class="secondary" data-i18n="btn_pause"></button>
+        <button id="btn-nettoyer" class="secondary" data-i18n="btn_nettoyer"></button>
+      </div>
+    </div>
+    <div id="jobs"><p class="muted" data-i18n="file_vide"></p></div>
+  </section>
+</main>
+
+<dialog id="explorateur">
+  <h2 data-i18n="h_explorateur"></h2>
+  <p id="exp-chemin" class="path" dir="ltr"></p>
+  <ul id="exp-liste"></ul>
+  <div class="row end">
+    <button id="exp-annuler" class="secondary" data-i18n="btn_annuler"></button>
+    <button id="exp-choisir" data-i18n="btn_choisir"></button>
+  </div>
+</dialog>
+
+<dialog id="aide" class="aide">
+  <div class="card-head">
+    <h2 data-i18n="aide_titre"></h2>
+    <button id="aide-fermer" class="secondary small" data-i18n-title="aide_fermer">✕</button>
+  </div>
+  <ol class="etapes">
+    <li><span class="num">1</span><div><b data-i18n="aide_e1_t"></b><span data-i18n="aide_e1"></span></div></li>
+    <li><span class="num">2</span><div><b data-i18n="aide_e2_t"></b><span data-i18n="aide_e2"></span></div></li>
+    <li><span class="num">3</span><div><b data-i18n="aide_e3_t"></b><span data-i18n="aide_e3"></span></div></li>
+    <li><span class="num">4</span><div><b data-i18n="aide_e4_t"></b><span data-i18n="aide_e4"></span></div></li>
+    <li><span class="num">5</span><div><b data-i18n="aide_e5_t"></b><span data-i18n="aide_e5"></span></div></li>
+  </ol>
+  <div class="conseils">
+    <b>💡 <span data-i18n="aide_conseils"></span></b>
+    <ul>
+      <li data-i18n="aide_c1"></li><li data-i18n="aide_c2"></li>
+      <li data-i18n="aide_c3"></li><li data-i18n="aide_c4"></li>
+    </ul>
+  </div>
+  <label class="check"><input id="aide-masquer" type="checkbox"> <span data-i18n="aide_ne_plus"></span></label>
+</dialog>
+
+<script src="/static/i18n.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
