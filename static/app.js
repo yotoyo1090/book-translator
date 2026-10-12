@@ -200,15 +200,27 @@ const TYPES = {
   "GIF animé": "type_gif",
   "endommagé": "type_endommage",
   "vide": "type_vide",
+  "feuilles": "type_feuilles",
+  "diapositives": "type_diapos",
+  "page web": "type_web",
+  "sous-titres": "type_srt",
+  "texte enrichi": "type_rtf",
+  "programme requis": "type_programme",
 };
+// programme qui convertit les anciens formats (HWP, DOC, XLS, PPT)
+const OUTILS = { hangul: "한글", office: "MS Office", libreoffice: "LibreOffice" };
+const LIBELLE_FORMAT = { HWPX: "type_hwpx", ODF: "type_odf" };
 
 function badge(l) {
   if (l.type && l.type.startsWith("erreur")) {
     return `<span class="badge err" title="${esc(l.type)}">${esc(t("type_erreur"))}</span>`;
   }
+  if (l.type === "programme requis") return `<span class="badge off">${esc(t("type_programme"))}</span>`;
   if (!l.supporte) return `<span class="badge off">${esc(t("bientot"))}</span>`;
-  const cls = AVEC_OCR.includes(l.type) ? "scan" : "texte";
-  const label = TYPES[l.type] ? t(TYPES[l.type]) : l.type;
+  const cls = AVEC_OCR.includes(l.type) || l.type === "conversion" ? "scan" : "texte";
+  const label = l.type === "conversion" ? t("type_conversion", { outil: OUTILS[l.outil] || l.outil })
+    : LIBELLE_FORMAT[l.format] ? t(LIBELLE_FORMAT[l.format])
+    : TYPES[l.type] ? t(TYPES[l.type]) : l.type;
   return `<span class="badge ${cls}">${esc(label)}</span>`;
 }
 
@@ -245,6 +257,9 @@ function dejaTraduit(l) {
 
 // statut d'un livre : [classe, texte, infobulle]
 function statut(l) {
+  if (l.type === "programme requis") {
+    return ["w", t("st_programme", { prog: l.format === "HWP" ? "한글" : "Office / LibreOffice" }), ""];
+  }
   if (!l.supporte) return ["m", t("st_non_pris"), ""];
   if (dansLaFile(l)) return ["m", "⏳ " + t("st_dans_file"), ""];
   if (dejaTraduit(l)) return ["d", "✓ " + t("st_deja_traduit"), t("st_deja_traduit_titre")];
@@ -278,7 +293,7 @@ function ligneLivre(i, g) {
       <td><input type="checkbox" data-i="${i}" data-g="${g}" ${l.supporte ? "" : "disabled"}
            ${aCocher(l) ? "checked" : ""}></td>
       <td class="livre" title="${esc(l.relpath)}"><span class="fic" dir="auto">${esc(nomFichier(l))}</span></td>
-      <td class="c"><span class="fmt">${esc(l.format)}</span></td>
+      <td class="c"><span class="fmt">${esc(nomFichier(l).split(".").pop().toUpperCase())}</span></td>
       <td>${celluleLangue(l, i)}</td>
       <td class="num">${l.pages ?? "–"}</td>
       <td>${badge(l)}</td>

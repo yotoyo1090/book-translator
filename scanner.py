@@ -19,6 +19,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pymupdf
 
+import office_engines as office
+from convert import converter_for
 from doc_engines import docx_paragraph_count, epub_documents
 from lang_detect import detect_file
 from pdf_engine import damaged_page, page_kind
@@ -31,11 +33,19 @@ FORMATS = {
     ".md": "TXT",
     ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE", ".webp": "IMAGE",
     ".bmp": "IMAGE", ".tif": "IMAGE", ".tiff": "IMAGE", ".gif": "IMAGE",
+    ".xlsx": "XLSX", ".pptx": "PPTX", ".hwpx": "HWPX",
+    ".odt": "ODF", ".ods": "ODF", ".odp": "ODF",
+    ".html": "HTML", ".htm": "HTML", ".xhtml": "HTML",
+    ".rtf": "RTF", ".srt": "SRT", ".vtt": "SRT",
+    # anciens formats binaires : convertis par le programme installé
+    ".hwp": "HWP", ".doc": "DOC", ".xls": "XLS", ".ppt": "PPT",
 }
-SUPPORTED_NOW = {"PDF", "EPUB", "DOCX", "TXT", "IMAGE"}
+SUPPORTED_NOW = {"PDF", "EPUB", "DOCX", "TXT", "IMAGE", "XLSX", "PPTX", "HWPX",
+                 "ODF", "HTML", "RTF", "SRT", "HWP", "DOC", "XLS", "PPT"}
+LEGACY_FORMATS = {"HWP", "DOC", "XLS", "PPT"}
 
 # à changer si la façon d'analyser change : l'ancienne mémoire est ignorée
-ANALYSE_VERSION = "2"
+ANALYSE_VERSION = "3"
 WORKERS = 4                # processus d'analyse en parallèle
 PARALLEL_FROM = 4          # en dessous : un seul processus (démarrage coûteux)
 
@@ -111,6 +121,22 @@ def analyse_file(path, fmt, installed_ocr):
                 info["supporte"] = False
         elif fmt == "DOCX":
             info.update(pages=docx_paragraph_count(path), type="paragraphes")
+        elif fmt == "XLSX":
+            info.update(pages=office.xlsx_sheet_count(path), type="feuilles")
+        elif fmt == "PPTX":
+            info.update(pages=office.pptx_slide_count(path), type="diapositives")
+        elif fmt == "HWPX":
+            info.update(pages=office.hwpx_paragraph_count(path), type="paragraphes")
+        elif fmt == "ODF":
+            info.update(pages=office.odf_paragraph_count(path), type="paragraphes")
+        elif fmt == "HTML":
+            info.update(pages=office.html_block_count(path), type="page web")
+        elif fmt == "RTF":
+            info.update(type="texte enrichi")
+        elif fmt == "SRT":
+            info.update(pages=office.subtitle_count(path), type="sous-titres")
+        elif fmt in LEGACY_FORMATS:
+            info.update(type="ancien format")
         else:
             info.update(type="texte brut")
     except Exception as e:                      # fichier corrompu / protégé
@@ -189,6 +215,11 @@ def list_files(folder, recursive=True):
 
 def _book(folder, path, fmt, analysis):
     relpath = os.path.relpath(path, folder)
+    if fmt in LEGACY_FORMATS and analysis.get("supporte"):
+        # recalculé à chaque scan : 한글 / Office a pu être installé depuis
+        tool = converter_for(os.path.splitext(path)[1])
+        analysis = {**analysis, "outil": tool, "supporte": tool is not None,
+                    "type": "conversion" if tool else "programme requis"}
     return {
         "path": path,
         "relpath": relpath,

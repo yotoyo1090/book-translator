@@ -1,7 +1,8 @@
 # Traducteur de livres
 
-Traduit en local, avec Ollama, tous les livres et images d'un dossier
-(PDF, EPUB, DOCX, TXT, MD, JPG, PNG, WEBP, BMP, TIFF, GIF), en gardant
+Traduit en local, avec Ollama, tous les livres, documents et images d'un
+dossier (PDF, EPUB, Word, Excel, PowerPoint, 한글 HWP/HWPX, ODT/ODS/ODP,
+RTF, HTML, SRT/VTT, TXT, MD, JPG, PNG, WEBP, BMP, TIFF, GIF), en gardant
 les images et la mise en page.
 
 ## Installation en un clic (Windows)
@@ -78,6 +79,14 @@ langue dans le menu (mode manuel) l'applique à tous les livres.
 | EPUB | seul le texte du XHTML change ; images, CSS, table des matières intacts |
 | DOCX | paragraphe recomposé avec sa mise en forme (gras, italique, liens, notes) |
 | TXT / MD | paragraphe par paragraphe ; code, tableaux et en-tête Markdown protégés |
+| XLSX (Excel) | cellules de texte, commentaires, graphiques, zones de texte ; nombres et formules intacts |
+| PPTX (PowerPoint) | diapositives, tableaux, notes, SmartArt, graphiques |
+| HWPX (한글) | paragraphes et tableaux, mise en forme gardée (la mise en page est recalculée par 한글) |
+| ODT / ODS / ODP | texte, cellules, diapositives (LibreOffice) |
+| HTML | blocs de texte ; scripts et styles intacts, langue de la page mise à jour |
+| RTF | paragraphe par paragraphe |
+| SRT / VTT | sous-titres, minutage intact |
+| HWP, DOC, XLS, PPT | anciens formats : convertis par 한글 (HWP) ou MS Office / LibreOffice, traduits, puis reconvertis dans leur format |
 | Fichiers image | OCR, texte effacé (inpainting OpenCV) et réécrit traduit, même couleur |
 | Images DANS les livres | idem, si la case « Traduire aussi le texte dans les images » est cochée |
 

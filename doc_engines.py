@@ -32,8 +32,8 @@ def _translate_archive_images(z, replaced, translator, ocr_lang, target_code,
     (même nom, même format : les liens vers l'image restent valides)."""
     from image_text import translate_image_bytes
     for name in z.namelist():
-        if not IMAGE_NAMES.search(name):
-            continue
+        if not IMAGE_NAMES.search(name) or "thumbnail" in name.lower():
+            continue                   # aperçu du fichier : inutile
         if should_stop and should_stop():
             stats["interrompu"] = True
             return

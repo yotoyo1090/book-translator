@@ -8,3 +8,5 @@ numpy
 lxml
 opencv-python-headless
 lingua-language-detector
+olefile
+pywin32; sys_platform == "win32"

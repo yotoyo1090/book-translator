@@ -124,6 +124,103 @@ def _txt_sample(path):
     return " ".join(text[i * chunk:i * chunk + 800] for i in range(4))
 
 
+def _zip_sample(path, pattern, tag):
+    """Texte des éléments `tag` des fichiers XML de l'archive qui
+    correspondent à `pattern` (Excel, PowerPoint, HWPX, ODF)."""
+    import re
+    from lxml import etree
+    with zipfile.ZipFile(path) as z:
+        names = [n for n in z.namelist() if re.match(pattern, n)]
+        parts = []
+        for name in _spread(sorted(names), 6):
+            root = etree.fromstring(z.read(name), etree.XMLParser(recover=True, huge_tree=True))
+            words = [t.text for t in root.iter(tag) if t.text and t.text.strip()]
+            parts.append(" ".join(_spread(words, 200)))
+        return " ".join(parts)
+
+
+ZIP_SAMPLES = {
+    "XLSX": (r"^xl/(sharedStrings|worksheets/sheet\d+)\.xml$", "{*}t"),
+    "PPTX": (r"^ppt/slides/slide\d+\.xml$", "{*}t"),
+    "HWPX": (r"^Contents/section\d+\.xml$", "{*}t"),
+    "ODF": (r"^content\.xml$", None),
+}
+
+
+def _odf_sample(path):
+    from lxml import etree
+    with zipfile.ZipFile(path) as z:
+        root = etree.fromstring(z.read("content.xml"), etree.XMLParser(recover=True, huge_tree=True))
+        return " ".join(" ".join(root.itertext()).split())[:SAMPLE_CHARS * 3]
+
+
+def _html_sample(path):
+    import lxml.html
+    doc = lxml.html.document_fromstring(open(path, "rb").read(400_000))
+    for bad in doc.xpath("//script|//style"):
+        bad.drop_tree()
+    return " ".join(doc.text_content().split())
+
+
+def _srt_sample(path):
+    from office_engines import _read_text
+    lines = [l for l in _read_text(path).splitlines()
+             if l.strip() and "-->" not in l and not l.strip().isdigit()]
+    return " ".join(_spread(lines, 120))
+
+
+def _script(ch):
+    o = ord(ch)
+    if o < 0x250:
+        return "latin" if ch.isalpha() else None
+    for name, lo, hi in (("cyr", 0x400, 0x4FF), ("arab", 0x600, 0x6FF),
+                         ("kana", 0x3040, 0x30FF), ("han", 0x4E00, 0x9FFF),
+                         ("hangul", 0xAC00, 0xD7AF)):
+        if lo <= o <= hi:
+            return name
+    return "autre"
+
+
+def _one_script(text):
+    """Vrai texte : surtout des lettres, presque toutes de la même écriture
+    (des octets quelconques lus en UTF-16 mélangent les écritures)."""
+    scripts = [s for s in map(_script, text) if s]
+    if len(scripts) < len(text) * 0.6:
+        return False
+    top = max(set(scripts), key=scripts.count)
+    if top == "autre" or scripts.count(top) < len(scripts) * 0.9:
+        return False
+    return top != "latin" or text.count(" ") >= 2
+
+
+def _legacy_sample(path):
+    """Ancien format binaire (HWP, DOC, XLS, PPT) sans le convertir.
+    HWP : flux « PrvText » (aperçu du texte). Sinon : suites de lettres
+    lisibles en UTF-16 (texte Office) ou en 8 bits."""
+    import re
+    if path.lower().endswith(".hwp"):
+        try:
+            import olefile
+            with olefile.OleFileIO(path) as ole:
+                if ole.exists("PrvText"):
+                    return ole.openstream("PrvText").read().decode("utf-16-le", "ignore")
+        except Exception:
+            pass
+    raw = open(path, "rb").read(3_000_000)
+    found = []
+    # texte UTF-16 : latin, cyrillique, arabe, kana, chinois, hangeul
+    utf16 = rb"(?:[\x09\x0d\x20-\x7e\xa0-\xff]\x00|[\x00-\xff][\x04\x06\x30\x4e-\x9f\xac-\xd7]){16,}"
+    for m in re.finditer(utf16, raw):
+        text = m.group(0).decode("utf-16-le", "ignore")
+        if _one_script(text):
+            found.append(text)
+    if sum(map(len, found)) < 300:            # texte en 8 bits (cp1252)
+        found += [t for t in (m.group(0).decode("cp1252", "ignore") for m in
+                  re.finditer(rb"[A-Za-z\xc0-\xff][A-Za-z\xc0-\xff ,.;:'()!?-]{24,}", raw))
+                  if t.count(" ") >= 3]
+    return " ".join(_spread(found, 200))
+
+
 # ------------------------------------------------------------
 # Scans et images : écriture puis OCR d'une page
 # ------------------------------------------------------------
@@ -179,6 +276,19 @@ def detect_file(path, fmt, installed_ocr=None):
             return detect_text(_docx_sample(path))
         if fmt == "TXT":
             return detect_text(_txt_sample(path))
+        if fmt == "ODF":
+            return detect_text(_odf_sample(path))
+        if fmt in ZIP_SAMPLES:
+            return detect_text(_zip_sample(path, *ZIP_SAMPLES[fmt]))
+        if fmt == "HTML":
+            return detect_text(_html_sample(path))
+        if fmt == "RTF":
+            from office_engines import rtf_text
+            return detect_text(rtf_text(path))
+        if fmt == "SRT":
+            return detect_text(_srt_sample(path))
+        if fmt in ("HWP", "DOC", "XLS", "PPT"):
+            return detect_text(_legacy_sample(path))
         if fmt == "IMAGE" and installed_ocr:
             with Image.open(path) as im:
                 img = im.convert("RGB")

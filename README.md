@@ -3,7 +3,7 @@
 
 <p align="center">
   내 PC에서, 인터넷 없이, 폴더 안의 책을 통째로 번역합니다.<br>
-  PDF · EPUB · Word · TXT · 이미지 — 그림과 레이아웃은 그대로.
+  PDF · EPUB · Word · Excel · PowerPoint · 한글(HWP/HWPX) · 이미지 — 그림과 레이아웃은 그대로.
 </p>
 
 <p align="center">
@@ -20,6 +20,7 @@
 - **레이아웃 보존** — PDF는 같은 자리에 번역문을 다시 쓰고, 그림·표지·도표는 그대로 둡니다.
 - **스캔본도 OK** — OCR(Tesseract)로 읽어서 번역합니다. 이미지 속 글자도 번역할 수 있습니다.
 - **언어 자동 감지** — 책마다 언어를 알아서 찾고, 이미 번역된 책은 다시 하지 않습니다.
+- **오피스·한글 문서도** — Excel, PowerPoint, 한글 HWPX, LibreOffice, HTML, RTF, 자막(SRT/VTT). HWP·DOC·XLS·PPT 예전 형식은 PC에 설치된 한글 / MS Office / LibreOffice로 변환해서 번역합니다.
 - **100% 로컬** — Ollama의 TranslateGemma 모델이 내 컴퓨터에서 돌아갑니다. 책이 밖으로 나가지 않습니다.
 - **원본은 그대로** — 번역본은 원본 옆에 `책_fr.pdf`처럼 만들어집니다.
 - **12개 언어 화면** — 한국어, English, 中文, Español, Français, العربية, Português, Русский, 日本語, Deutsch, Italiano, Nederlands.
@@ -46,9 +47,15 @@
 | DOCX | 굵게·기울임·링크 등 서식을 유지 |
 | TXT / MD | 코드·표·머리말은 보호 |
 | 이미지 | OCR → 글자 지우기(인페인팅) → 같은 색으로 번역문 |
+| XLSX (Excel) | 텍스트 셀·메모·차트 — 숫자와 수식은 그대로 |
+| PPTX (PowerPoint) | 슬라이드·표·발표자 노트·SmartArt |
+| HWPX (한글) | 문단·표, 서식 유지 |
+| ODT · ODS · ODP | LibreOffice 문서 |
+| HTML · RTF · SRT · VTT | 웹 페이지, 서식 있는 텍스트, 자막(시간 그대로) |
+| HWP · DOC · XLS · PPT | 한글 / MS Office / LibreOffice로 변환 → 번역 → 원래 형식으로 저장 |
 
 ---
 
-**English** — Translate whole folders of books (PDF, EPUB, DOCX, TXT, images) locally with Ollama, keeping images and layout. Download the one-click Windows installer above.
+**English** — Translate whole folders of books and documents (PDF, EPUB, Word, Excel, PowerPoint, Hangul HWP/HWPX, ODF, HTML, RTF, subtitles, images) locally with Ollama, keeping images and layout. Download the one-click Windows installer above.
 
 **Français** — documentation complète : [LISEZMOI.md](LISEZMOI.md).
