@@ -466,30 +466,37 @@ $("btn-traduire").addEventListener("click", async () => {
 });
 
 // ---------- file d'attente ----------
+// La page ne redemande pas l'état toutes les secondes : elle pose une
+// question que le serveur garde ouverte jusqu'à ce que la file change
+// (livre terminé, page traduite, pause…). Le serveur n'envoie que les
+// livres affichés (en cours, 30 prochains, 30 derniers) et des compteurs.
 let enPause = false;
+let version = null;        // version de la file déjà affichée
+let listeVersion = null;   // version des listes complètes déjà reçues
+const PAS = 30, MAX_LIGNES = 500;
+let montrer = PAS;         // livres en attente affichés (« 더 보기 » : +30)
 
 // livres dans la file (en attente / en cours / en pause), par langue de sortie
 let enFile = new Set();
 
-// À chaque rafraîchissement de la file :
-// - un livre traduit passe en « déjà traduit » (même s'il a été traduit
-//   pendant le scan, avant d'apparaître dans la liste) ;
+// Listes complètes (envoyées seulement quand elles changent) :
+// - un livre traduit passe en « déjà traduit » dans la liste du scan ;
 // - un livre déjà dans la file est signalé et décoché.
-function synchroniserListe(jobs) {
+function synchroniserListe(state) {
+  if (!state.actifs) return;               // rien de nouveau
+  listeVersion = state.list_version;
   let change = false;
-  for (const j of jobs) {
-    if (j.etat !== "terminé") continue;
-    const l = livres.find((x) => x.path === j.path);
-    const code = codesLangues[j.cible];
+  const parChemin = new Map(livres.map((l) => [l.path, l]));
+  for (const [path, cible] of state.termines) {
+    const l = parChemin.get(path);
+    const code = codesLangues[cible];
     if (l && code && !(l.traductions || []).includes(code)) {
       l.traductions = [...(l.traductions || []), code];
       change = true;
     }
   }
-  const actifs = new Set(jobs
-    .filter((j) => ["en attente", "en cours", "en pause"].includes(j.etat))
-    .map((j) => `${j.path}|${j.cible}`));
-  if ([...actifs].sort().join("\n") !== [...enFile].sort().join("\n")) {
+  const actifs = new Set(state.actifs.map(([p, c]) => `${p}|${c}`));
+  if (actifs.size !== enFile.size || [...actifs].some((k) => !enFile.has(k))) {
     enFile = actifs;
     change = true;
   }
@@ -505,62 +512,134 @@ const ETATS = {
   "terminé": "etat_termine", "erreur": "etat_erreur", "annulé": "etat_annule",
 };
 
-function afficherJobs(state) {
-  dernierEtat = state;
-  synchroniserListe(state.jobs);
-  enPause = state.pause;
-  $("btn-pause").textContent = t(enPause ? "btn_reprendre" : "btn_pause");
-  const box = $("jobs");
-  if (!state.jobs.length) {
-    box.innerHTML = `<p class="muted">${esc(t("file_vide"))}</p>`;
-    return;
-  }
-  const now = Date.now() / 1000;
-  box.innerHTML = state.jobs.map((j) => {
-    const pct = j.etat === "terminé" ? 100 : (j.pages ? Math.round((j.page / j.pages) * 100) : 0);
-    let temps = "";
-    if (j.etat === "en cours" && j.debut && j.page > 0) {
-      const ecoule = now - j.debut;
-      const reste = (ecoule / j.page) * (j.pages - j.page);
-      temps = ` · ${t("reste", { d: duree(reste) })}`;
-    } else if (j.etat === "terminé" && j.fin) {
-      temps = ` · ${duree(j.fin - j.debut)}`;
-    }
-    const actions = [];
-    if (["en attente", "en cours", "en pause"].includes(j.etat)) {
-      actions.push(`<button class="small secondary" data-annuler="${j.id}">${esc(t("btn_annuler"))}</button>`);
-    }
-    if (["erreur", "annulé"].includes(j.etat)) {
-      actions.push(`<button class="small secondary" data-reessayer="${j.id}">${esc(t("btn_reessayer"))}</button>`);
-    }
-    if (j.sortie) {
-      actions.push(`<button class="small secondary" data-ouvrir="${esc(j.sortie)}" title="${esc(j.sortie)}">${esc(t("btn_ouvrir"))}</button>`);
-    }
-    return `
-      <div class="job ${esc(j.etat)}">
-        <div class="job-top">
-          <span class="job-name" dir="auto">${esc(j.relpath)}</span>
-          <span class="row">${actions.join("")}</span>
-        </div>
-        <div class="bar"><div style="width:${pct}%"></div></div>
-        <div class="job-meta">
-          <span class="etat-${esc(j.etat)}">${esc(ETATS[j.etat] ? t(ETATS[j.etat]) : j.etat)}</span>
-          · ${esc(t("page_n", { i: j.page, n: j.pages || "?" }))} · ${esc(nomDe(j.source))} → ${esc(nomDe(j.cible))}${esc(temps)}
-          ${j.info ? `<br>${esc(tradServeur(j.info))}` : ""}
-          ${j.sortie ? `<br><code dir="ltr">${esc(j.sortie)}</code>` : ""}
-        </div>
-      </div>`;
-  }).join("");
+function boutonsJob(j) {
+  const b = (attr, val, cle, titre = "") =>
+    `<button class="small secondary" ${attr}="${esc(val)}"${titre ? ` title="${esc(titre)}"` : ""}>${esc(t(cle))}</button>`;
+  const actions = [];
+  if (j.annulation) return "";                       // « 취소 중… » : attendre
+  if (["en attente", "en cours", "en pause"].includes(j.etat)) actions.push(b("data-annuler", j.id, "btn_annuler"));
+  if (["erreur", "annulé"].includes(j.etat)) actions.push(b("data-reessayer", j.id, "btn_reessayer"));
+  if (j.sortie) actions.push(b("data-ouvrir", j.sortie, "btn_ouvrir", j.sortie));
+  if (j.etat !== "en cours") actions.push(b("data-supprimer", j.id, "btn_supprimer", t("btn_supprimer_titre")));
+  return actions.join("");
 }
 
+function metaJob(j) {
+  const now = Date.now() / 1000;
+  let temps = "";
+  if (j.etat === "en cours" && j.debut && j.page > 0) {
+    temps = ` · ${t("reste", { d: duree(((now - j.debut) / j.page) * (j.pages - j.page)) })}`;
+  } else if (j.etat === "terminé" && j.fin) {
+    temps = ` · ${duree(j.fin - j.debut)}`;
+  }
+  const etat = j.annulation ? t("etat_annulation") : (ETATS[j.etat] ? t(ETATS[j.etat]) : j.etat);
+  return `<span class="etat-${esc(j.etat)}">${esc(etat)}</span>
+    · ${esc(t("page_n", { i: j.page, n: j.pages || "?" }))} · ${esc(nomDe(j.source))} → ${esc(nomDe(j.cible))}${esc(temps)}
+    ${j.info ? `<br>${esc(tradServeur(j.info))}` : ""}
+    ${j.sortie ? `<br><code dir="ltr">${esc(j.sortie)}</code>` : ""}`;
+}
+
+// met à jour une partie seulement si elle a changé : les boutons ne sont
+// pas recréés sous la souris, chaque clic arrive
+function poser(el, html) {
+  if (el._html !== html) { el.innerHTML = html; el._html = html; }
+}
+
+function afficherJobs(state) {
+  dernierEtat = state;
+  synchroniserListe(state);
+  enPause = state.pause;
+  $("btn-pause").textContent = t(enPause ? "btn_reprendre" : "btn_pause");
+  const c = state.compte || {};
+  const attente = (c["en attente"] || 0) + (c["en pause"] || 0);
+  $("btn-annuler-tout").hidden = attente === 0;
+  $("btn-annuler-tout").textContent = t("btn_annuler_attente", { n: attente.toLocaleString(langueUI) });
+
+  const box = $("jobs");
+  if (!state.total) {
+    poser(box, `<p class="muted">${esc(t("file_vide"))}</p>`);
+    return;
+  }
+  if (!$("jobs-liste")) {
+    box.innerHTML = `<p id="jobs-resume" class="muted"></p><div id="jobs-liste"></div><p id="jobs-masques" class="muted"></p>`;
+    box._html = null;
+  }
+  poser($("jobs-resume"), Object.keys(ETATS).filter((e) => c[e])
+    .map((e) => `<span class="chip">${esc(t(ETATS[e]))} ${c[e].toLocaleString(langueUI)}</span>`).join(" "));
+  const masques = state.total - state.jobs.length;
+  const boutons = [];
+  if (masques > 0 && montrer < MAX_LIGNES) boutons.push(`<button class="small secondary" data-plus>${esc(t("btn_plus"))}</button>`);
+  if (montrer > PAS) boutons.push(`<button class="small secondary" data-moins>${esc(t("btn_moins"))}</button>`);
+  poser($("jobs-masques"), (masques > 0 ? esc(t("file_masques", { n: masques.toLocaleString(langueUI) })) + " " : "") + boutons.join(" "));
+
+  const liste = $("jobs-liste");
+  const vus = new Set();
+  let avant = null;
+  for (const j of state.jobs) {
+    vus.add(j.id);
+    let el = liste.querySelector(`:scope > [data-job="${j.id}"]`);
+    if (!el) {
+      el = document.createElement("div");
+      el.dataset.job = j.id;
+      el.innerHTML = `<div class="job-top"><span class="job-name" dir="auto"></span><span class="row"></span></div>
+        <div class="bar"><div></div></div><div class="job-meta"></div>`;
+      el.querySelector(".job-name").textContent = j.relpath;
+    }
+    el.className = `job ${j.etat}`;
+    const pct = j.etat === "terminé" ? 100 : (j.pages ? Math.round((j.page / j.pages) * 100) : 0);
+    el.querySelector(".bar > div").style.width = `${pct}%`;
+    poser(el.querySelector(".job-top .row"), boutonsJob(j));
+    poser(el.querySelector(".job-meta"), metaJob(j));
+    // ordre : ne déplace l'élément que s'il n'est pas déjà à sa place
+    const attendu = avant ? avant.nextElementSibling : liste.firstElementChild;
+    if (attendu !== el) liste.insertBefore(el, attendu);
+    avant = el;
+  }
+  for (const el of [...liste.children]) {
+    if (!vus.has(el.dataset.job)) el.remove();
+  }
+}
+
+// réponse immédiate (après un clic, pendant un scan)
 async function rafraichir() {
-  try { afficherJobs(await api("/api/status")); } catch (e) { /* serveur arrêté */ }
+  try {
+    const params = new URLSearchParams({ montrer });
+    if (listeVersion !== null) params.set("liste", listeVersion);
+    afficherJobs(await api(`/api/status?${params}`));
+  } catch (e) { /* serveur arrêté */ }
+}
+
+// boucle d'écoute : attend que la file change
+async function ecouter() {
+  for (;;) {
+    try {
+      const params = new URLSearchParams({ montrer });
+      if (version !== null) params.set("version", version);
+      if (listeVersion !== null) params.set("liste", listeVersion);
+      const demande = montrer;
+      const state = await api(`/api/status?${params}`);
+      version = state.version;
+      // « 더 보기 » cliqué pendant l'attente : cette réponse a l'ancien nombre de lignes
+      if (demande === montrer) afficherJobs(state); else rafraichir();
+      // au plus ~3 fois par seconde ; onglet caché : pas d'attente (le
+      // navigateur y ralentit les minuteries, le serveur croirait la page fermée)
+      if (!document.hidden) await new Promise((r) => setTimeout(r, 300));
+    } catch (e) {
+      await new Promise((r) => setTimeout(r, 3000));     // serveur arrêté : réessayer
+    }
+  }
 }
 
 $("jobs").addEventListener("click", async (e) => {
+  if (e.target.closest("[data-plus]")) { montrer = Math.min(montrer + PAS, MAX_LIGNES); return rafraichir(); }
+  if (e.target.closest("[data-moins]")) { montrer = PAS; return rafraichir(); }
   const a = e.target.closest("[data-annuler]");
   const o = e.target.closest("[data-ouvrir]");
   const r = e.target.closest("[data-reessayer]");
+  const d = e.target.closest("[data-supprimer]");
+  const bouton = a || r || d;
+  if (bouton) bouton.disabled = true;                   // clic pris en compte
+  if (d) await api(`/api/supprimer/${d.dataset.supprimer}`, { method: "POST" });
   if (a) await api(`/api/annuler/${a.dataset.annuler}`, { method: "POST" });
   if (r) await api(`/api/reessayer/${r.dataset.reessayer}`, { method: "POST" });
   if (o) await api(`/api/ouvrir?chemin=${encodeURIComponent(o.dataset.ouvrir)}`, { method: "POST" }).catch(() => {});
@@ -572,6 +651,15 @@ $("btn-pause").addEventListener("click", async () => {
 });
 $("btn-nettoyer").addEventListener("click", async () => {
   await api("/api/nettoyer", { method: "POST" });
+  rafraichir();
+});
+$("btn-quitter").addEventListener("click", async () => {
+  await api("/api/quitter", { method: "POST" }).catch(() => {});
+  document.body.innerHTML = `<main><section class="card"><h2>${esc(t("app_title"))}</h2>
+    <p>${esc(t("quitte_msg"))}</p></section></main>`;
+});
+$("btn-annuler-tout").addEventListener("click", async () => {
+  await api("/api/annuler_attente", { method: "POST" });
   rafraichir();
 });
 
@@ -589,5 +677,4 @@ appliquerI18n();
 if (store("aide_masquee") !== "1") $("aide").showModal();
 $("dossier").value = store("dossier") || "";
 chargerOptions().catch(erreurMsg);
-rafraichir();
-setInterval(rafraichir, 1000);
+ecouter();

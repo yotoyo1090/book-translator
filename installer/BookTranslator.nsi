@@ -3,7 +3,7 @@
 
 Unicode true
 !define APP "Book Translator"
-!define VERSION "1.0.0"
+!define VERSION "1.2.0"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\BookTranslator"
 
 Name "${APP}"

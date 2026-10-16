@@ -47,10 +47,50 @@ def demarrer_ollama():
         time.sleep(0.5)
 
 
+def version_en_cours():
+    """Empreinte du programme qui tourne (None : ancienne version)."""
+    import json
+    import urllib.request
+    try:
+        with urllib.request.urlopen(URL + "/api/version", timeout=5) as r:
+            return json.load(r).get("version")
+    except Exception:
+        return None
+
+
+def arreter_ancien():
+    """Arrête proprement le programme qui tourne (bouton « 종료 »), et en
+    dernier recours le processus lui-même."""
+    import urllib.request
+    try:
+        urllib.request.urlopen(urllib.request.Request(URL + "/api/quitter",
+                                                      method="POST"), timeout=5)
+    except Exception:
+        pass
+    for _ in range(90):                       # arrêt propre : jusqu'à 90 s
+        if not port_ouvert(8765):
+            return
+        time.sleep(1)
+    if sys.platform == "win32":               # ancienne version sans « 종료 »
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        script = ("Get-CimInstance Win32_Process -Filter \"Name like 'python%'\" | "
+                  f"Where-Object {{ $_.CommandLine -like '*{HERE}*' -and $_.ProcessId -ne {os.getpid()} }} | "
+                  "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
+        subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                       creationflags=flags, timeout=30)
+        for _ in range(20):
+            if not port_ouvert(8765):
+                return
+            time.sleep(0.5)
+
+
 def main():
-    if port_ouvert(8765):            # déjà lancé
-        webbrowser.open(URL)
-        return
+    from version import code_version
+    if port_ouvert(8765):
+        if version_en_cours() == code_version():   # même version : rouvrir la page
+            webbrowser.open(URL)
+            return
+        arreter_ancien()                           # version mise à jour : redémarrer
     # pythonw n'a pas de console : les messages vont dans un fichier
     log = open(os.path.join(HERE, "journal.txt"), "a", encoding="utf-8")
     sys.stdout = sys.stderr = log

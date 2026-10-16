@@ -6,6 +6,7 @@
 import os
 import string
 import threading
+import time
 import webbrowser
 
 import requests
@@ -19,6 +20,9 @@ from jobs import JobQueue
 from ocr_engine import TESSERACT_LANG, OcrUnavailable, configure_tesseract
 from scanner import scan_folder
 from translator import DEFAULT_MODEL, OLLAMA_URL, list_models
+from version import code_version
+
+VERSION = code_version()       # empreinte des fichiers au démarrage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOST, PORT = "127.0.0.1", 8765
@@ -42,6 +46,67 @@ LANGUES = {
 app = FastAPI(title="Traducteur de livres")
 queue = JobQueue(os.path.join(HERE, "cache_traductions.sqlite"))
 last_scan = {"dossier": None, "livres": [], "recursif": True}
+
+
+# ------------------------------------------------------------
+# Fermeture : quand plus aucune page n'est ouverte, l'application
+# s'arrête proprement (rien ne reste en arrière-plan).
+# ------------------------------------------------------------
+
+PAGE_GONE_AFTER = 30       # s sans page connectée (laisse le temps d'actualiser)
+FIRST_PAGE_WAIT = 120      # s pour que la première page s'ouvre au lancement
+
+pages = {"ouvertes": 0, "vue": time.time(), "deja_vue": False}
+pages_lock = threading.Lock()
+started = time.time()
+
+
+def page_seen(delta=0):
+    with pages_lock:
+        pages["ouvertes"] += delta
+        pages["vue"] = time.time()
+        pages["deja_vue"] = True
+
+
+def shutdown():
+    """Ferme tout de suite : les passages déjà traduits sont dans le cache,
+    seul le passage en cours sera refait. Libère la carte graphique."""
+    queue.set_paused(True)
+    models = {DEFAULT_MODEL} | {j["modele"] for j in queue.jobs if j.get("modele")}
+    for m in models:                          # décharger le modèle de la mémoire vidéo
+        try:
+            requests.post(f"{OLLAMA_URL}/api/generate",
+                          json={"model": m, "keep_alive": 0}, timeout=2)
+        except requests.RequestException:
+            pass
+    os._exit(0)
+
+
+def queue_busy():
+    """Un livre est traduit, ou attend son tour (file pas en pause)."""
+    with queue.lock:
+        return any(j["etat"] == "en cours" or
+                   (j["etat"] == "en attente" and not queue.paused)
+                   for j in queue.jobs)
+
+
+def watchdog():
+    while True:
+        time.sleep(5)
+        with pages_lock:
+            ouvertes, vue, deja = pages["ouvertes"], pages["vue"], pages["deja_vue"]
+        now = time.time()
+        # une traduction en cours continue même si la page se tait (onglet
+        # mis en veille par le navigateur) : arrêt seulement par « 종료 »
+        # ou quand la file n'a plus rien à faire
+        if ouvertes > 0 or queue_busy():
+            continue
+        if (deja and now - vue > PAGE_GONE_AFTER) or \
+                (not deja and now - started > FIRST_PAGE_WAIT):
+            shutdown()
+
+
+threading.Thread(target=watchdog, daemon=True).start()
 
 
 # ------------------------------------------------------------
@@ -217,8 +282,36 @@ def add_jobs(req: JobRequest):
 
 
 @app.get("/api/status")
-def status():
-    return queue.snapshot()
+def status(version: int | None = None, liste: int | None = None,
+           montrer: int | None = None):
+    """Sans `version` : réponse immédiate. Avec `version` : attend qu'il se
+    passe quelque chose dans la file (au plus 30 s) avant de répondre."""
+    if version is None:
+        page_seen()
+        return queue.snapshot(liste, montrer)
+    page_seen(+1)                 # une page attend : elle est ouverte
+    try:
+        queue.wait(version, timeout=30)
+        return queue.snapshot(liste, montrer)
+    finally:
+        page_seen(-1)
+
+
+@app.get("/api/version")
+def version():
+    return {"version": VERSION}
+
+
+@app.post("/api/quitter")
+def quitter():
+    threading.Thread(target=shutdown, daemon=True).start()
+    return {"ok": True}
+
+
+@app.post("/api/annuler_attente")
+def annuler_attente():
+    queue.cancel_waiting()
+    return {"ok": True}
 
 
 @app.post("/api/pause")
@@ -242,6 +335,12 @@ def annuler(job_id: str):
 @app.post("/api/reessayer/{job_id}")
 def reessayer(job_id: str):
     queue.retry(job_id)
+    return {"ok": True}
+
+
+@app.post("/api/supprimer/{job_id}")
+def supprimer(job_id: str):
+    queue.remove(job_id)
     return {"ok": True}
 
 

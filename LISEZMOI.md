@@ -62,6 +62,22 @@ commence sans attendre la fin du scan et continue jusqu'au dernier livre.
 Les livres déjà traduits, déjà dans la langue de sortie ou déjà dans la
 file ne sont pas envoyés une deuxième fois.
 
+## File d'attente et fermeture
+
+- **취소** arrête le livre tout de suite (la partie déjà traduite reste dans
+  le cache) ; **다시 시도** le relance ; **삭제** le retire de la liste
+  (aucun fichier n'est effacé). « Annuler tout ce qui attend » vide la file.
+- La file reste rapide même avec des milliers de livres : la page n'affiche
+  que les prochains livres, **더 보기** en montre davantage.
+- **종료** arrête tout en quelques secondes et libère la carte graphique :
+  rien ne reste en arrière-plan. La file est vidée ; au prochain lancement,
+  les passages déjà traduits ressortent du cache.
+- Onglet fermé ou mis en veille par le navigateur : la traduction continue
+  jusqu'au bout de la file, puis le programme s'arrête tout seul.
+- Si Ollama refuse un passage (erreur 500), il est gardé dans la langue
+  d'origine et la traduction continue ; si le modèle ne se charge pas, le
+  programme attend et réessaie avant de mettre la file en pause.
+
 ## Langue des livres
 
 Par défaut, « Langue du livre » est sur **Détection automatique** : chaque

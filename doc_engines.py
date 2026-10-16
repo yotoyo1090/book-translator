@@ -630,6 +630,13 @@ def translate_text_file(src, dst, translator, markdown=False,
         head, text = _front_matter(text, translator)
     parts = _paragraphs(text)
     stats = _stats(len(parts))
+    if not markdown:
+        # TXT : un paragraphe peut faire tout le fichier (aucune ligne vide),
+        # le compteur avance donc à chaque morceau envoyé au modèle
+        from translator import split_long_text
+        total = sum(len(split_long_text(" ".join(p.split()))) if needs_translation(p) else 1
+                    for p in parts)
+        done = 0
     out, in_code = [], False
     for i, para in enumerate(parts, start=1):
         if should_stop and should_stop():
@@ -664,9 +671,20 @@ def translate_text_file(src, dst, translator, markdown=False,
         else:
             # TXT : lignes coupées à la main → on recolle le paragraphe
             lead = para[: len(para) - len(para.lstrip("\n"))]
-            out.append(lead + translator.translate(" ".join(para.split())))
+            done_parts = []
+            for chunk in split_long_text(" ".join(para.split())):
+                done_parts.append(translator.translate(chunk))
+                done += 1
+                if on_progress:
+                    on_progress(done, total, "")
+            out.append(lead + " ".join(done_parts))
             stats["blocs"] += 1
-        if on_progress:
+            continue
+        if not markdown:
+            done += 1
+            if on_progress:
+                on_progress(done, total, "")
+        elif on_progress:
             on_progress(i, len(parts), "paragraphes")
 
     with open(dst, "w", encoding="utf-8", newline="") as f:
